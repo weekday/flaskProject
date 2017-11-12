@@ -8,11 +8,12 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'hard to guess string'
     SQLALCHEMY_COMMIT_ON_TEARDOWN = True
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    FLASK_MAIL_SUBJECT_PREFIX = ['Flasky']
+    FLASK_MAIL_SUBJECT_PREFIX = '[Flasky]'
     FLASK_MAIL_SENDER = 'Admin <lyj901188@163.com>'
     FLASK_ADMIN = os.environ.get('FLASK_ADMIN')
     MAIL_SERVER = 'smtp.163.com'
-    FLASK_MAIL_SSL = True
+    MAIL_USE_SSL = True
+    MAIL_USE_TLS = False
     MAIL_PORT = 465
     MAIL_USERNAME = 'lyj901188@163.com'
     MAIL_PASSWORD = 'yinjian881109'
