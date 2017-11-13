@@ -35,7 +35,7 @@ class LoginForm(FlaskForm):
 class ChangePasswordForm(FlaskForm):
     old_password = PasswordField(u'旧密码',validators=[DataRequired()])
     password = PasswordField(u'请输入新密码',validators=[DataRequired(),EqualTo('password2',message='Passwords must be match.')])
-    password2 = PasswordField(u'确认心密码',validators=[DataRequired()])
+    password2 = PasswordField(u'确认新密码',validators=[DataRequired()])
     submit = SubmitField(u'修改密码')
 
 #重设密码邮箱验证
