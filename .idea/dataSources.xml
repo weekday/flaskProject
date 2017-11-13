@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="data_dev" uuid="1a2e1fbf-c20f-488c-97ab-078a412625be">
+    <data-source source="LOCAL" name="data_dev" uuid="ed32d0ef-0018-4ec0-8bf0-22b1962b1b89">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <imported>true</imported>
       <remarks>SQLite</remarks>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:E:\flaskproject\flaskProject\data_dev.sqlite</jdbc-url>
+      <jdbc-url>jdbc:sqlite:G:\python\flaskproject\flaskProject\data_dev.sqlite</jdbc-url>
       <driver-properties>
         <property name="enable_load_extension" value="true" />
       </driver-properties>
