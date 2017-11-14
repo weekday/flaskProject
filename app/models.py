@@ -34,7 +34,7 @@ class User(UserMixin,db.Model):
         return self.role is not None and (self.role.permissions & permissions) == permissions
 	
     def is_administrator(self):
-        return self.can(Permission.ADMINISTER)
+        return self.can(Permission.ADMIN)
 	
     @property
     def password(self):
@@ -87,7 +87,7 @@ class User(UserMixin,db.Model):
     def change_email(self,token):
         s = Serializer(current_app.config['SECRET_KEY'])
         try:
-            data = s.loads(token)
+            data = s.loads(token.encode('utf-8'))
         except:
             return False
         if data.get('change_email') != self.id:
@@ -100,11 +100,19 @@ class User(UserMixin,db.Model):
         self.email = new_email
         db.session.add(self)
         return True
-		
-
 
     def __repr__(self):
         return '<User %r>' % self.username
+
+class AnonymousUser(AnonymousUserMixin):
+    def can(self,permissions):
+        return False
+
+    def is_administrator(self):
+        return False
+
+login_manager.anonymous_user = AnonymousUser
+
 
 
 class Role(db.Model):
@@ -121,25 +129,46 @@ class Role(db.Model):
     default = db.Column(db.Boolean,default=False,index=True)
     permissions = db.Column(db.Integer)
     users = db.relationship('User',backref='role',lazy='dynamic')
-	
+
+    def __init__(self,**kwargs):
+        super(Role,self).__init__(**kwargs)
+        if self.permissions is None:
+            self.permissions = 0
+
     @staticmethod
     def insert_roles():
         roles = {
-			'User':(Permission.FOLLOW | Permission.COMMENT |
-				  Permission.WRITE_ARTICLES ,True),
-			'Moderator':(Permission.FOLLOW | Permission.COMMENT |
-						 Permission.WRITE_ARTICLES |
-						 Permission.MODERATE_COMMENTS,False),
-			'Administrator':(0xff,False)
+			'User':[Permission.FOLLOW,Permission.COMMENT,Permission.WRITES],
+			'Moderator':[Permission.FOLLOW,Permission.COMMENT,
+						 Permission.WRITE,Permission.MODERATE],
+			'Administrator':[Permission.FOLLOW,Permission.COMMENT,Permission.WRITES,
+                             Permission.WRITE,Permission.ADMIN]
 		}
+        default_role = 'User'
         for r in roles:
             role = Role.query.filter_by(name=r).first()
             if role is None:
                 role = Role(name=r)
-            role.permissions = role[r][0]
-            role.default = role[r][1]
+            role.reset_permissions()
+            for perm in roles[r]:
+                role.add_permissions = perm
+            role.default = (role.name == default_role)
+            db.session.add(role)
         db.session.commit()
-		
+
+    def has_permission(self,perm):
+        return self.permissions & perm == perm
+
+    def add_permission(self,perm):
+        if not self.has_permission(perm):
+            self.permissions += perm
+
+    def remove_permission(self,perm):
+        if self.has_permission(perm):
+            self.permissions -= perm
+
+    def reset_permissions(self):
+        self.permissions = 0
 	
     def __repr__(self):
         return '<Role %r>' % self.name
@@ -147,17 +176,17 @@ class Role(db.Model):
 class Permission:
     '''
     权限常量：
-	FOLLOW = 0x01             关注用户
-    COMMENT = 0x02            在他人的文章中评论
-    WRITE_ARTICLES = 0x04     写原创文章
-    MODERATE_COMMENTS = 0x08  管理他人发表的评论
-    ADMINISTER = 0x80         管理员权限
+	FOLLOW = 1             关注用户
+    COMMENT = 2            在他人的文章中评论
+    WRITE = 4     写原创文章
+    MODERATE = 8  管理他人发表的评论
+    ADMIN = 16         管理员权限
 	'''
-    FOLLOW = 0x01
-    COMMENT = 0x02
-    WRITE_ARTICLES = 0x04
-    MODERATE_COMMENTS = 0x08
-    ADMINISTER = 0x80
+    FOLLOW = 1
+    COMMENT = 2
+    WRITE = 4
+    MODERATE = 8
+    ADMIN = 16
 
 @login_manager.user_loader
 def loader_user(user_id):

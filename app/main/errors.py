@@ -3,6 +3,9 @@
 from . import main
 from flask import render_template
 
+@main.app_errorhandler(403)
+def page_not_fount(e):
+    return render_template('403.html'),403
 
 @main.app_errorhandler(404)
 def page_not_fount(e):
