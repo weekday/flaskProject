@@ -9,6 +9,7 @@ from itsdangerous import TimedJSONWebSignatureSerializer as  Serializer
 from flask import current_app, request
 from datetime import datetime
 
+
 class User(UserMixin,db.Model):
     '''
     用户信息
@@ -41,6 +42,30 @@ class User(UserMixin,db.Model):
                 self.role = Role.query.filter_by(default=True).first()
         if self.email is not None and self.avatar_hash is None:
             self.avatar_hash = self.gravatar_hash()
+
+    '''
+    通过generate_fake方法添加虚拟数据，生产环境非必须
+    '''
+    @staticmethod
+    def generate_fake(count=100):
+        from sqlalchemy.exc import IntegrityError
+        from random import seed
+        import forgery_py
+        seed()
+        for i in range(count):
+            u = User(email=forgery_py.internet.email_address(),
+                     username=forgery_py.internet.user_name(True),
+                     password='password',
+                     confirmed=True,
+                     name=forgery_py.name.full_name(),
+                     location=forgery_py.address.city(),
+                     about_me=forgery_py.lorem_ipsum.sentence(),
+                     member_since=forgery_py.date.date(True))
+        db.session.add(u)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
 
     def gravatar_hash(self):
         return hashlib.md5(self.email.lower().encode('utf-8')).hexdigest()
@@ -228,3 +253,21 @@ class Post(db.Model):
     body = db.Column(db.Text)
     timestamp = db.Column(db.DateTime,index=True,default=datetime.utcnow)
     author_id = db.Column(db.Integer,db.ForeignKey('users.id'))
+
+    '''
+    通过generate_fake方法添加虚拟数据，生产环境非必须
+    '''
+    @staticmethod
+    def generate_fake(count=100):
+        from random import seed, randint
+
+        import forgery_py
+        seed()
+        user_count = User.query.count()
+        for i in range(count):
+            u = User.query.offset(randint(0, user_count - 1)).first()
+            p = Post(body=forgery_py.lorem_ipsum.sentences(randint(1, 3)),
+                 timestamp=forgery_py.date.date(True),
+                 author=u)
+            db.session.add(p)
+            db.session.commit()

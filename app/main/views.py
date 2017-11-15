@@ -5,10 +5,10 @@ from ..models import User,Role,Permission,Post
 from .forms import EditProfileForm,EditProfileAdminForm,PostForm
 from ..decorators import admin_required
 from flask_login import login_required,current_user
-from flask import render_template,abort,url_for,flash,redirect
+from flask import render_template, abort, url_for, flash, redirect, request, current_app
 
 
-@main.route('/')
+@main.route('/',methods=['GET','POST'])
 def index():
     form = PostForm()
     if current_user.can(Permission.WRITE) and form.validate_on_submit():
@@ -16,8 +16,12 @@ def index():
         db.session.add(post)
         db.session.commit()
         return redirect(url_for('.index'))
-    posts = Post.query.filter_by(Post.timestamp.desc()).all()
-    return render_template('index.html',form=form,posts=posts)
+    page = request.args.get('page',1,type=int)
+    pagination = Post.query.order_by(Post.timestamp.desc()).paginate(
+        page,per_page=current_app.config['FLASKY_POSTS_PER_PAGE'],
+        error_out=False)
+    posts = pagination.items
+    return render_template('index.html',form=form,posts=posts,pagination=pagination)
 
 
 #展示个人信息页面路由
