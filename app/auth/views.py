@@ -34,7 +34,10 @@ def login():
         user = User.query.filter_by(email = form.email.data).first()
         if user is not None and user.verify_password(form.password.data):
             login_user(user,form.remember_me.data)
-            return redirect(request.args.get('next')or url_for('main.index'))
+            next = request.args.get('next')
+            if next is None or not next.startswith('/'):
+                next = url_for('main.index')
+            return redirect(next)
         flash(u'用户名或密码无效')
     return render_template('auth/login.html',form = form)
 
@@ -52,7 +55,8 @@ def logout():
 def confirm(token):
     if current_user.confirmed:
         return redirect(url_for('main.index'))
-    elif current_user.confirm(token):
+    if current_user.confirm(token):
+        db.session.commit()
         flash('You have confirmed your account.Thanks!')
     else:
         flash('The confirmation link is invalid or has expired.')
@@ -67,9 +71,11 @@ def unconfirmed():
 
 @auth.before_app_request
 def before_request():
-    if current_user.is_authenticated and not current_user.confirmed \
-			and request.endpoint[:5] != 'auth.' and request.endpoint != 'static':
-        return redirect(url_for('auth.unconfirmed'))
+    if current_user.is_authenticated:
+        current_user.ping()
+        if not current_user.confirmed and request.endpoint \
+				and request.blueprint != 'auth' and request.endpoint != 'static':
+            return redirect(url_for('auth.unconfirmed'))
 
 #重新发送帐户确认邮件
 @auth.route('/confirm')
@@ -86,16 +92,17 @@ def resend_confirmation():
 @auth.route('/change-password',methods=['GET','POST'])
 @login_required
 def change_password():
-	form = ChangePasswordForm()
-	if form.validate_on_submit():
-		if current_user.verify_password(form.old_password.data):
-			current_user.password = form.password.data
-			db.session.add(current_user)
-			flash(u'您的密码已经更新.')
-			return redirect(url_for('main.index'))
-		else:
-			flash(u'无效密码.')
-	return render_template('auth/change_password.html',form = form)
+    form = ChangePasswordForm()
+    if form.validate_on_submit():
+        if current_user.verify_password(form.old_password.data):
+            current_user.password = form.password.data
+            db.session.add(current_user)
+            db.session.commit()
+            flash(u'您的密码已经更新.')
+            return redirect(url_for('main.index'))
+        else:
+            flash(u'无效密码.')
+    return render_template('auth/change_password.html',form = form)
 
 #重置密码请求
 @auth.route('/reset',methods=['GET','POST'])
@@ -121,10 +128,8 @@ def password_reset(token):
 	form = PasswordResetForm()
 	if form.validate_on_submit():
 		user = User.query.filter_by(email=form.email.data).first()
-		if user is None:
-			return redirect(url_for('main.index'))
 		if user.reset_password(token,form.password.data):
-			flash(u'您的密码已更新')
+			flash(u'您的密码已更新.')
 			return redirect(url_for('auth.login'))
 		else:
 			return redirect(url_for('main.index'))
@@ -151,6 +156,7 @@ def change_email_request():
 @login_required
 def change_email(token):
 	if current_user.chang_email(token):
+		db.session.commit()
 		flash(u'您的邮箱地址已经更新.')
 	else:
 		flash(u'请求无效.')

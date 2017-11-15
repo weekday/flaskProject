@@ -10,7 +10,7 @@ class RegistrationForm(FlaskForm):
     email = StringField(u'邮箱',validators=[DataRequired(),Length(1,64),Email()])
     username = StringField(u'用户名',validators=[DataRequired(),Length(1,64),
                 Regexp('^[A-Za-z][A-Za-z0-9_.]*$',0,
-                       'Usernames must have only letters,numbers,dots or underscores')])
+                       u'用户名必须以字母开头，由字母、数字、点或下划线组成')])
     password = PasswordField(u'设置密码',validators=[DataRequired(),EqualTo('password2',message='Passwords must be match.')])
     password2 = PasswordField(u'确认密码',validators=[DataRequired()])
     submit = SubmitField(u'立即注册')
