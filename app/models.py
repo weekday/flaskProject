@@ -8,7 +8,8 @@ from werkzeug.security import generate_password_hash,check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer as  Serializer
 from flask import current_app, request
 from datetime import datetime
-
+from markdown import markdown
+import bleach
 
 class User(UserMixin,db.Model):
     '''
@@ -28,7 +29,12 @@ class User(UserMixin,db.Model):
     last_seen = db.Column(db.DateTime(),default=datetime.utcnow)
     avatar_hash = db.Column(db.String(32))
     posts = db.relationship('Post',backref='author',lazy='dynamic')
-
+    followed = db.relationship('Follow',foreign_keys=[Follow.follower_id],
+                               backref=db.backref('follower',lazy='joined'),
+                               lazy='dynamic',cascade='all,delete-orphan')
+    followers = db.relationship('Follow',foreign_keys=[Follow.followed_id],
+                               backref=db.backref('followed',lazy='joined'),
+                               lazy='dynamic',cascade='all,delete-orphan')
 	
     def __init__(self,**kwargs):
         '''
@@ -152,8 +158,34 @@ class User(UserMixin,db.Model):
         db.session.add(self)
         return True
 
+    def follow(self,user):
+        if not self.is_following(user):
+            f = Follow(followed=user)
+            self.followed.append(f)
+
+    def unfollow(self,user):
+        f = self.followed.filter_by(followed_id=user.id).first()
+        if f:
+            self.followed.remove(f)
+
+    def is_following(self,user):
+        if user.id is None:
+            return False
+        return self.followed.filter_by(followed_id=user.id).first() is not None
+
+    def is_followed_by(self,user):
+        if user.id is None:
+            return False
+        return self.followers.filter_by(follower_id=user.id).first() is not None
+
     def __repr__(self):
         return '<User %r>' % self.username
+
+class Follow(db.Model):
+    __tablename__ = 'follows'
+    followed_id = db.Column(db.Integer,db.ForeignKey('users.id'),primary_key=True)
+    follower_id = db.Column(db.Integer,db.ForeignKey('users.id'),primary_key=True)
+    timestamp = db.Column(db.DateTime,default=datetime.utcnow)
 
 class AnonymousUser(AnonymousUserMixin):
     def can(self,permissions):
@@ -186,6 +218,9 @@ class Role(db.Model):
         if self.permissions is None:
             self.permissions = 0
 
+    '''
+    通过insert_roles方法初始化角色及相应权限
+    '''
     @staticmethod
     def insert_roles():
         roles = {
@@ -202,7 +237,7 @@ class Role(db.Model):
                 role = Role(name=r)
             role.reset_permissions()
             for perm in roles[r]:
-                role.add_permissions = perm
+                role.add_permission(perm)
             role.default = (role.name == default_role)
             db.session.add(role)
         db.session.commit()
@@ -253,6 +288,7 @@ class Post(db.Model):
     body = db.Column(db.Text)
     timestamp = db.Column(db.DateTime,index=True,default=datetime.utcnow)
     author_id = db.Column(db.Integer,db.ForeignKey('users.id'))
+    body_html = db.Column(db.Text)
 
     '''
     通过generate_fake方法添加虚拟数据，生产环境非必须
@@ -271,3 +307,12 @@ class Post(db.Model):
                  author=u)
             db.session.add(p)
             db.session.commit()
+
+    @staticmethod
+    def on_change_body(target,value,oldvalue,initiator):
+        allowed_tags = ['a','abbr','acronym','b','blockquote','code','em','i','li','ol',
+                        'pre','strong','ul','h1','h2','h3','p']
+        target.body_html = bleach.linkify(bleach.clean(markdown(value,output_format='html'),
+                                                       tags=allowed_tags,strip=True))
+
+db.event.listen(Post.body,'set',Post.on_change_body)

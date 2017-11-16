@@ -3,7 +3,7 @@ from app import db
 from . import main
 from ..models import User,Role,Permission,Post
 from .forms import EditProfileForm,EditProfileAdminForm,PostForm
-from ..decorators import admin_required
+from ..decorators import admin_required,premission_required
 from flask_login import login_required,current_user
 from flask import render_template, abort, url_for, flash, redirect, request, current_app
 
@@ -27,10 +27,12 @@ def index():
 #展示个人信息页面路由
 @main.route('/user/<username>')
 def user(username):
-    user = User.query.filter_by(username=username).first()
-    if user is None:
-        abort(403)
-    return render_template('user.html', user=user)
+    user = User.query.filter_by(username=username).first_or_404()
+    page = request.args.get('page',1,type=int)
+    pagination = user.posts.order_by(Post.timestamp.desc()).paginate(
+        page,per_page=current_app.config['FLASKY_POSTS_PER_PAGE'],error_out=False)
+    posts = pagination.items
+    return render_template('user.html', user=user,posts=posts,pagination=pagination)
 
 #普通用户资料编辑路由
 @main.route('/edit-profile',methods=['GET','POST'])
@@ -78,4 +80,38 @@ def edit_profile_admin(id):
     form.about_me.data = user.about_me
     return render_template('edit_profile.html',form=form,user=user)
 
+@main.route('/post/<int:id>')
+def post(id):
+    post = Post.query.get_or_404(id)
+    return render_template('post.html',posts=[post])
 
+@main.route('/edit/<int:id>',methods=['GET','POST'])
+@login_required
+def edit(id):
+    post = Post.query.get_or_404(id)
+    if current_user != post.author and not current_user.can(Permission.ADMIN):
+        abort(403)
+    form = PostForm()
+    if form.validate_on_submit():
+        post.body = form.body.data
+        db.session.add(post)
+        flash(u'你的文章已修改.')
+        return redirect(url_for('post',id=post.id))
+    form.body.data = post.body
+    return render_template('edit_post.html',form=form)
+
+#关注
+@main.route('/follow/<username>')
+@login_required
+@premission_required(Permission.FOLLOW)
+def follow(username):
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        flash(u'无效用户.')
+        return redirect(url_for('mian.index'))
+    if current_user.is_following(user):
+        flash(u'你已经关注了他.')
+        return redirect(url_for('main.user',username=username))
+    current_user.follow(user)
+    flash(u'你已经将%s加入关注名单.' % username)
+    return redirect(url_for('main.user',username=username))
