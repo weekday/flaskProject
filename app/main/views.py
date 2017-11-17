@@ -115,3 +115,48 @@ def follow(username):
     current_user.follow(user)
     flash(u'你已经将%s加入关注名单.' % username)
     return redirect(url_for('main.user',username=username))
+
+#取消关注
+@main.route('/unfollow/<username>')
+@login_required
+@premission_required(Permission.FOLLOW)
+def unfollow(username):
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        flash(u'无效用户.')
+        return redirect(url_for('main.index'))
+    if current_user.is_following(user):
+        flash(u'您还没有关注该用户.')
+        return redirect(url_for('main.user',username=username))
+    current_user.unfollow(user)
+    flash(u'您已取消对%s的关注.' % username)
+    return redirect(url_for('main.user',username=username))
+
+#关注列表
+@main.route('/followers/<username>')
+def followers(username):
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        flash(u'无效用户.')
+        return redirect(url_for('main.index'))
+    page = request.args.get('page',1,type=int)
+    pagination = user.followers.paginate(page,per_page=current_app.config['FLASKY_FOLLOWERS_PER_PAGE'],
+                                         error_out=False)
+    follows = [{'user':item.follower,'timestamp':item.timestamp} for item in pagination.items]
+    return render_template('followers.html',user=user,title='Followers of',endpoint='.followers',
+                           pagination=pagination,follows=follows)
+
+#被关注列表
+@main.route('/followed-by/<username>')
+def followed_by(username):
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        flash(u'无效用户.')
+        return redirect(url_for('main.index'))
+    page = request.args.get('page',1,type=int)
+    pagination = user.followed.pagination(page,per_page=current_app.config['FLASKY_FOLLOWES_PER_PAGE'],
+                                          error_out=False)
+    follows = [{'user':item.followed,'timestamp':item.timestamp} for item in pagination.items]
+    return render_template('followers.html',user=user,title='Followed by',endpoint='.followed_by',
+                           pagination=pagination,follows=follows)
+

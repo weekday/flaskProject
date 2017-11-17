@@ -11,6 +11,12 @@ from datetime import datetime
 from markdown import markdown
 import bleach
 
+class Follow(db.Model):
+    __tablename__ = 'follows'
+    followed_id = db.Column(db.Integer,db.ForeignKey('users.id'),primary_key=True)
+    follower_id = db.Column(db.Integer,db.ForeignKey('users.id'),primary_key=True)
+    timestamp = db.Column(db.DateTime,default=datetime.utcnow)
+
 class User(UserMixin,db.Model):
     '''
     用户信息
@@ -160,7 +166,7 @@ class User(UserMixin,db.Model):
 
     def follow(self,user):
         if not self.is_following(user):
-            f = Follow(followed=user)
+            f = Follow(follower=self,followed=user)
             self.followed.append(f)
 
     def unfollow(self,user):
@@ -181,11 +187,6 @@ class User(UserMixin,db.Model):
     def __repr__(self):
         return '<User %r>' % self.username
 
-class Follow(db.Model):
-    __tablename__ = 'follows'
-    followed_id = db.Column(db.Integer,db.ForeignKey('users.id'),primary_key=True)
-    follower_id = db.Column(db.Integer,db.ForeignKey('users.id'),primary_key=True)
-    timestamp = db.Column(db.DateTime,default=datetime.utcnow)
 
 class AnonymousUser(AnonymousUserMixin):
     def can(self,permissions):
