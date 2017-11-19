@@ -23,9 +23,6 @@
                 {% endif %}
             </div>
             <div class="post-footer">
-                <a href="{{ url_for('main.post',id=post.id) }}">
-                    <span class="label label-default">文章链接</span>
-                </a>
                 {% if current_user == post.author %}
                 <a href="{{ url_for('main.edit',id=post.id) }}">
                     <span class="label label-primary">编辑</span>
@@ -35,6 +32,12 @@
                     <span class="label label-danger">管理员编辑</span>
                 </a>
                 {% endif %}
+                <a href="{{ url_for('main.post',id=post.id) }}">
+                    <span class="label label-default">文章链接</span>
+                </a>
+                <a href="{{ url_for('main.post',id=post.id) }}#comments">
+                    <span class="label label-primary">{{ post.comments.count() }}评论数</span>
+                </a>
             </div>
         </div>
     </li>

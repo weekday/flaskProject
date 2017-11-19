@@ -41,6 +41,7 @@ class User(UserMixin,db.Model):
     followers = db.relationship('Follow',foreign_keys=[Follow.followed_id],
                                backref=db.backref('followed',lazy='joined'),
                                lazy='dynamic',cascade='all,delete-orphan')
+    comments = db.relationship('Comment',backref='author',lazy='dynamic')
 	
     def __init__(self,**kwargs):
         '''
@@ -54,6 +55,7 @@ class User(UserMixin,db.Model):
                 self.role = Role.query.filter_by(default=True).first()
         if self.email is not None and self.avatar_hash is None:
             self.avatar_hash = self.gravatar_hash()
+        self.follow(self)
 
     '''
     通过generate_fake方法添加虚拟数据，生产环境非必须
@@ -184,6 +186,20 @@ class User(UserMixin,db.Model):
             return False
         return self.followers.filter_by(follower_id=user.id).first() is not None
 
+    @property
+    def followed_posts(self):
+        return Post.query.join(Follow,Follow.followed_id == Post.author_id)\
+                .filter(Follow.follower_id == self.id)
+
+    #使自己关注自己
+    @staticmethod
+    def add_self_follows():
+        for user in User.query.all():
+            if not user.is_following(user):
+                user.follow(user)
+                db.session.add(user)
+                db.session.commit()
+
     def __repr__(self):
         return '<User %r>' % self.username
 
@@ -290,6 +306,7 @@ class Post(db.Model):
     timestamp = db.Column(db.DateTime,index=True,default=datetime.utcnow)
     author_id = db.Column(db.Integer,db.ForeignKey('users.id'))
     body_html = db.Column(db.Text)
+    comments = db.relationship('Comment',backref='post',lazy='dynamic')
 
     '''
     通过generate_fake方法添加虚拟数据，生产环境非必须
@@ -316,4 +333,28 @@ class Post(db.Model):
         target.body_html = bleach.linkify(bleach.clean(markdown(value,output_format='html'),
                                                        tags=allowed_tags,strip=True))
 
-db.event.listen(Post.body,'set',Post.on_change_body)
+db.event.listen(Post.body, 'set', Post.on_change_body)
+
+#评论模型
+class Comment(db.Model):
+    '''
+    评论模型
+    '''
+    __tablename__ = 'comments'
+    id = db.Column(db.Integer,primary_key=True)
+    body = db.Column(db.Text)
+    body_html = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    post_id = db.Column(db.Integer,db.ForeignKey('posts.id'))
+    disabled = db.Column(db.Boolean)
+
+    @staticmethod
+    def on_changed_body(target,value,oldvalue,initiator):
+        allowed_tags = ['a','abbr','acronym','b','blockquote','code','em','i','li','ol',
+                        'pre','strong','ul','h1','h2','h3','p']
+        target.body_html = bleach.linkify(bleach.clean(markdown(value,output_format='html'),
+                                                       tags=allowed_tags,strip=True))
+
+db.event.listen(Comment.body,'set',Comment.on_changed_body)
+
