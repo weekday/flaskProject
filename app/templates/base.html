@@ -32,9 +32,9 @@
                 {% endif %}
             </ul>
             <ul class="nav navbar-nav navbar-right">
-                {% if current_user.can(Premission.MODERATE)%}
+                {% if current_user.can(Permission.MODERATE)%}
                 <li>
-
+                    <a href="{{url_for('main.moderate')}}">修改评论</a>
                 </li>
                 {% endif %}
                 {% if current_user.is_authenticated %}
