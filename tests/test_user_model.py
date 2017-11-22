@@ -3,7 +3,8 @@
 import unittest
 import time
 from app import create_app,db
-from app.models import User
+from app.models import User, Role
+
 
 class UserModelTestCase(unittest.TestCase):
     def setUp(self):
@@ -11,6 +12,7 @@ class UserModelTestCase(unittest.TestCase):
         self.app_context = self.app.app_context()
         self.app_context.push()
         db.create_all()
+        Role.insert_roles()
 
     def tearDown(self):
         db.session.remove()

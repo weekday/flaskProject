@@ -1,12 +1,14 @@
 #coding:utf-8
 
 import hashlib
+
+from app.exceptions import ValidationError
 from . import db
 from . import login_manager
 from flask_login import UserMixin,AnonymousUserMixin
 from werkzeug.security import generate_password_hash,check_password_hash
 from itsdangerous import TimedJSONWebSignatureSerializer as  Serializer
-from flask import current_app, request
+from flask import current_app, request, url_for
 from datetime import datetime
 from markdown import markdown
 import bleach
@@ -200,6 +202,34 @@ class User(UserMixin,db.Model):
                 db.session.add(user)
                 db.session.commit()
 
+
+    def generate_auth_token(self,expiration = 3600):
+        s = Serializer(current_app.config['SECRET_KEY'],expires_in=expiration)
+        return s.dumps({"id":self.id})
+
+    @staticmethod
+    def verify_auth_toke(token):
+        s = Serializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token)
+        except:
+            return None
+        return User.query.get(data['id'])
+
+    #将用户转换成json格式的序列化字典
+    def to_json(self):
+        json_user = {
+            'url':url_for('api.get_user',id=self.id,_external=True),
+            'username':self.username,
+            'member_since':self.member_since,
+            'last_seen':self.last_seen,
+            'posts_url':url_for('api.get_user_posts',id=self.id,_external=True),
+            'followed_posts_url':url_for('api.get_user_followed_posts',
+                            id=self.id,_external=True),
+            'posts_count':self.posts.count()
+        }
+        return json_user
+
     def __repr__(self):
         return '<User %r>' % self.username
 
@@ -333,6 +363,27 @@ class Post(db.Model):
         target.body_html = bleach.linkify(bleach.clean(markdown(value,output_format='html'),
                                                        tags=allowed_tags,strip=True))
 
+    #将文章转换成json格式的序列化字典
+    def to_json(self):
+        json_post = {
+            'url':url_for('api.get_post',id=self.id,_external=True),
+            'body':self.body,
+            'body_html':self.body_html,
+            'timestamp':self.timestamp,
+            'author':url_for('api.get_user',id=self.author_id,_external=True),
+            'comments':url_for('api.get_post_comments',id=self.id,_external=True),
+            'comment_count':self.comments.count()
+        }
+        return json_post
+
+    #使用json格式数据创建一篇博客文章
+    @staticmethod
+    def from_json(json_post):
+        body = json_post.get('body')
+        if body is None or body == '':
+            raise ValidationError('post does not hava a body')
+        return Post(body=body)
+
 db.event.listen(Post.body, 'set', Post.on_change_body)
 
 #评论模型
@@ -355,6 +406,26 @@ class Comment(db.Model):
                         'pre','strong','ul','h1','h2','h3','p']
         target.body_html = bleach.linkify(bleach.clean(markdown(value,output_format='html'),
                                                        tags=allowed_tags,strip=True))
+
+    #讲评论转换成json格式的序列化字典
+    def to_json(self):
+        json_comment = {
+            'url':url_for('api.get_comment',id=self.id,_external=True),
+            'post_url':url_for('api.get_post',id=self.post_id,_external=True),
+            'body':self.body,
+            'body_html':self.body_html,
+            'timestamp':self.timestamp,
+            'author_url':url_for('api.get_user',id=self.author_id,_external=True),
+        }
+        return json_comment
+
+    #使用json格式创建一片博客评论
+    @staticmethod
+    def from_json(json_comment):
+        body = json_comment.get('body')
+        if body is None or body == '':
+            raise ValidationError('comment does not have a body')
+        return Comment(body=body)
 
 db.event.listen(Comment.body,'set',Comment.on_changed_body)
 
